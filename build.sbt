@@ -22,6 +22,7 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.30" % Provided,
   "org.scalatest" %% "scalatest" % "3.2.9" % Test,
   "com.novocode" % "junit-interface" % "0.11" % Test,
+  "org.nanohttpd" % "nanohttpd" % "2.3.1" % Test,
   "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
   "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
   "org.scala-lang" % "scala-library" % scalaVersion.value % Provided

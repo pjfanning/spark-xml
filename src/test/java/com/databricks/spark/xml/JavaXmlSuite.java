@@ -16,11 +16,14 @@
 package com.databricks.spark.xml;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
+import fi.iki.elonen.NanoHTTPD;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -29,6 +32,8 @@ import org.junit.Test;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+
+import static org.junit.Assert.fail;
 
 public final class JavaXmlSuite {
 
@@ -89,4 +94,44 @@ public final class JavaXmlSuite {
         Assert.assertEquals(result, numBooks);
     }
 
+    @Test
+    public void testEntityExpansion() {
+        ExploitServer.withServer(s -> fail("Should not have made request"), () -> {
+            String testFile = "src/test/resources/books-external-entity.xml";
+            Map<String, String> options = new HashMap<>();
+            options.put("rowTag", booksFileTag);
+            Dataset<Row> df = spark.read().options(options).format("xml").load(testFile);
+            long result = df.select("description").count();
+            Assert.assertEquals(result, numBooks);
+        });
+    }
+
+    private static class ExploitServer extends NanoHTTPD implements AutoCloseable {
+        private final Consumer<IHTTPSession> onRequest;
+
+        public ExploitServer(Consumer<IHTTPSession> onRequest) throws IOException {
+            super(61932);
+            this.onRequest = onRequest;
+        }
+
+        @Override
+        public Response serve(IHTTPSession session) {
+            onRequest.accept(session);
+            return newFixedLengthResponse("<!ENTITY % data SYSTEM \"file://pom.xml\">\n");
+        }
+
+        public static void withServer(Consumer<IHTTPSession> onRequest, Runnable func) {
+            try(ExploitServer server = new ExploitServer(onRequest)) {
+                server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+                func.run();
+            } catch(IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public void close() {
+            this.stop();
+        }
+    }
 }
